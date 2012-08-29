@@ -13,6 +13,6 @@ You will need to have OpenCV built with OpenGL support in order to run the demo.
 
 How to enable OpenGL Support in OpenCV
 ===============================
- * Windows: Enable WITH_OPENGL=YES flag when building OpenCV to enable OpenGL support.
- * Linux: sudo apt-get install libgtkglext1 libgtkglext1-dev first
- * Mac: Install QT4 and then configure OpenCV with QT and OpenGL
+ * <b>Windows</b>: Enable WITH_OPENGL=YES flag when building OpenCV to enable OpenGL support.
+ * <b>Linux</b>: Execute "sudo apt-get install libgtkglext1 libgtkglext1-dev" first.
+ * <b>Mac</b>: Install QT4 and then configure OpenCV with QT and OpenGL.
