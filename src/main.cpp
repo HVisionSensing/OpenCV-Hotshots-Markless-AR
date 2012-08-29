@@ -19,7 +19,7 @@ int main(int argc, const char * argv[])
 {
     // Change this calibration to yours:
     CameraCalibration calibration(526.58037684199849f, 524.65577209994706f, 318.41744018680112f, 202.96659047014398f);
-
+    
     if (argc < 2)
     {
         std::cout << "Input image not specified" << std::endl;
@@ -69,22 +69,13 @@ int main(int argc, const char * argv[])
 
 void processVideo(const cv::Mat& patternImage, CameraCalibration& calibration, cv::VideoCapture& capture)
 {
+	// Grab first frame to get the frame dimensions
+	cv::Mat currentFrame;  
+	capture >> currentFrame;
+	cv::Size frameSize(currentFrame.cols, currentFrame.rows);
+
     ARPipeline pipeline(patternImage, calibration);
-    ARDrawingContext drawingCtx(calibration);
-
-    // Grab first frame to get the frame dimensions
-    cv::Mat currentFrame;  
-    capture >> currentFrame;
-
-    // Create window with OpenGL support
-    cv::namedWindow(ARWindowName, cv::WINDOW_OPENGL);
-    
-    // Resize it exactly to video size
-    cv::resizeWindow(ARWindowName, currentFrame.cols, currentFrame.rows);
-
-    // Initialize OpenGL draw callback:
-    cv::setOpenGlContext(ARWindowName);
-    cv::setOpenGlDrawCallback(ARWindowName, drawAR, &drawingCtx);
+    ARDrawingContext drawingCtx(ARWindowName, frameSize, calibration);
 
     while (capture.grab() && capture.retrieve(currentFrame))
     {
@@ -95,10 +86,10 @@ void processVideo(const cv::Mat& patternImage, CameraCalibration& calibration, c
         drawingCtx.patternPose = pipeline.getPatternLocation();
 
         // Invoke redraw of the OpenGL window
-        cv::updateWindow(ARWindowName);
+        drawingCtx.updateBackground(currentFrame);
 
         // Wait for keyboard input for 1 ms
-        int keyCode = cv::waitKey(1);
+        int keyCode = cv::waitKey();
         
         // Quit if user pressed 'q' or ESC button
         if (keyCode == 'q' || keyCode == 27) 
@@ -109,30 +100,17 @@ void processVideo(const cv::Mat& patternImage, CameraCalibration& calibration, c
 void processSingleImage(const cv::Mat& patternImage, CameraCalibration& calibration, const cv::Mat& image)
 {
     ARPipeline pipeline(patternImage, calibration);
-    ARDrawingContext drawingCtx(calibration);
+	bool patternPresent = pipeline.processFrame(image);
+	cv::waitKey(-1);
 
-    cv::namedWindow(ARWindowName, cv::WINDOW_OPENGL);
-    cv::resizeWindow(ARWindowName, 640, 480);
-    cv::setOpenGlContext(ARWindowName);
-    cv::setOpenGlDrawCallback(ARWindowName, drawAR, &drawingCtx);
-
+    ARDrawingContext drawingCtx(ARWindowName, cv::Size(image.cols, image.rows), calibration);
     drawingCtx.updateBackground(image);
-    bool found = pipeline.processFrame(image);
-    drawingCtx.isPatternPresent = found;
-    if (found)
-    {
-        drawingCtx.patternPose = pipeline.getPatternLocation();
-    }
+    drawingCtx.isPatternPresent = patternPresent;
+    drawingCtx.patternPose = pipeline.getPatternLocation();
 
-    cv::updateWindow(ARWindowName);
-    cv::waitKey(-1);
+	while (cv::waitKey() != 27)
+	{
+		drawingCtx.updateWindow();
+	}
 }
 
-void drawAR(void* param)
-{
-    ARDrawingContext * ctx = static_cast<ARDrawingContext*>(param);
-    if (ctx)
-    {
-        ctx->draw();
-    }
-}

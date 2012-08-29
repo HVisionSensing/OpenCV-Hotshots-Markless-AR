@@ -10,21 +10,29 @@
 // Standard includes:
 #include <opencv2/opencv.hpp>
 
+void ARDrawingContextDrawCallback(void* param);
+
 class ARDrawingContext
 {
 public:
-  ARDrawingContext(const CameraCalibration& c);
+  ARDrawingContext(std::string windowName, cv::Size frameSize, const CameraCalibration& c);
+  ~ARDrawingContext();
 
+  
   bool                isPatternPresent;
   Transformation      patternPose;
 
-  //! Request the redraw of the OpenGl window
-  void draw();
 
   //! Set the new frame for the background
   void updateBackground(const cv::Mat& frame);
 
+  void updateWindow();
+
 private:
+	friend void ARDrawingContextDrawCallback(void* param);
+	//! Render entire scene in the OpenGl window
+	void draw();
+
   //! Draws the background with video
   void drawCameraFrame();
 
@@ -45,6 +53,7 @@ private:
   unsigned int       m_backgroundTextureId;
   CameraCalibration  m_calibration;
   cv::Mat            m_backgroundImage;
+  std::string        m_windowName;
 };
 
 #endif

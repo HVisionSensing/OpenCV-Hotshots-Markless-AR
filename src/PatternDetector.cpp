@@ -1,6 +1,7 @@
 ////////////////////////////////////////////////////////////////////
 // File includes:
 #include "PatternDetector.hpp"
+#include "DebugHelpers.hpp"
 
 ////////////////////////////////////////////////////////////////////
 // Standard includes:
@@ -78,12 +79,7 @@ void PatternDetector::computePatternFromImage(const cv::Mat& image, Pattern& pat
     extractFeatures(gray, pattern.keypoints, pattern.descriptors);
 }
 
-cv::Mat getMatchesImage(cv::Mat query, cv::Mat pattern, const std::vector<cv::KeyPoint>& queryKp, const std::vector<cv::KeyPoint>& trainKp, const std::vector<cv::DMatch>&matches)
-{
-    cv::Mat outImg;
-    cv::drawMatches(query, queryKp, pattern, trainKp, matches, outImg);
-    return outImg;
-}
+
 
 bool PatternDetector::findPattern(const cv::Mat& image, PatternTrackingInfo& info)
 {
@@ -92,11 +88,10 @@ bool PatternDetector::findPattern(const cv::Mat& image, PatternTrackingInfo& inf
     getMatches(m_queryDescriptors, m_matches);
 
 #if _DEBUG
-    cv::imwrite("RoughMatches.png", getMatchesImage(image, m_pattern.frame, m_queryKeypoints, m_pattern.keypoints, m_matches));
+    cv::showAndSave("Raw matches", getMatchesImage(image, m_pattern.frame, m_queryKeypoints, m_pattern.keypoints, m_matches, 100));
 #endif
 
 #if _DEBUG
-    cv::Mat outImg;
     cv::Mat tmp = image.clone();
 #endif
 
@@ -104,13 +99,14 @@ bool PatternDetector::findPattern(const cv::Mat& image, PatternTrackingInfo& inf
 
     if (homographyFound)
     {
-        //cv::imwrite("RefinedUsingRansacMatches1.png", getMatchesImage(image, m_pattern.data, queryKeypoints, m_pattern.keypoints, matches));
-
+#if _DEBUG
+        cv::showAndSave("Refined matches using ransac", getMatchesImage(image, m_pattern.frame, m_queryKeypoints, m_pattern.keypoints, m_matches, 100));
+#endif
         if (enableHomographyRefinement)
         {
             cv::warpPerspective(m_grayImg, m_warpedImg, m_roughHomography, m_pattern.size, cv::WARP_INVERSE_MAP | cv::INTER_CUBIC);
 #if _DEBUG
-            cv::imshow("Warped image",m_warpedImg);
+            cv::showAndSave("Warped image",m_warpedImg);
 #endif
 
             // Get refined matches:
@@ -122,7 +118,7 @@ bool PatternDetector::findPattern(const cv::Mat& image, PatternTrackingInfo& inf
 
             homographyFound = refineMatchesWithHomography(warpedKeypoints, m_pattern.keypoints, refinedMatches, m_refinedHomography);
 #if _DEBUG
-            cv::imwrite("MatchesWithRefinedPose.png", getMatchesImage(m_warpedImg, m_pattern.frame, warpedKeypoints, m_pattern.keypoints, refinedMatches));
+            cv::showAndSave("MatchesWithRefinedPose", getMatchesImage(m_warpedImg, m_pattern.frame, warpedKeypoints, m_pattern.keypoints, refinedMatches, 100));
 #endif
             info.homography = m_roughHomography * m_refinedHomography;
 
@@ -153,8 +149,7 @@ bool PatternDetector::findPattern(const cv::Mat& image, PatternTrackingInfo& inf
 #if _DEBUG
     if (1)
     {
-        cv::drawMatches( tmp, m_queryKeypoints, m_pattern.frame, m_pattern.keypoints, m_matches, outImg);
-        cv::imshow("Matches", outImg);
+        cv::showAndSave("Final matches", getMatchesImage(tmp, m_pattern.frame, m_queryKeypoints, m_pattern.keypoints, m_matches, 100));
     }
     std::cout << "Features:" << std::setw(4) << m_queryKeypoints.size() << " Matches: " << std::setw(4) << m_matches.size() << std::endl;
 #endif

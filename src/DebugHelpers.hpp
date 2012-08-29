@@ -18,7 +18,34 @@ namespace cv
     {
         cv::imshow(name, m);
         cv::imwrite(name + ".png", m);
+		//cv::waitKey(25);
     }
+
+	inline cv::Mat getMatchesImage(cv::Mat query, cv::Mat pattern, const std::vector<cv::KeyPoint>& queryKp, const std::vector<cv::KeyPoint>& trainKp, std::vector<cv::DMatch> matches, int maxMatchesDrawn)
+	{
+		cv::Mat outImg;
+
+		if (matches.size() > maxMatchesDrawn)
+		{
+			matches.resize(maxMatchesDrawn);
+		}
+
+		cv::drawMatches
+			(
+			query, 
+			queryKp, 
+			pattern, 
+			trainKp,
+			matches, 
+			outImg, 
+			cv::Scalar::all(-1), 
+			cv::Scalar::all(-1),
+			std::vector<char>(), 
+			cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS
+			);
+
+		return outImg;
+	}
 }
 
 #endif

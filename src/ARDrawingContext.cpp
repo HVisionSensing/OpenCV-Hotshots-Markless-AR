@@ -7,11 +7,34 @@
 #include <gl/gl.h>
 #include <gl/glu.h>
 
-ARDrawingContext::ARDrawingContext(const CameraCalibration& c)
+void ARDrawingContextDrawCallback(void* param)
+{
+	ARDrawingContext * ctx = static_cast<ARDrawingContext*>(param);
+	if (ctx)
+	{
+		ctx->draw();
+	}
+}
+
+ARDrawingContext::ARDrawingContext(std::string windowName, cv::Size frameSize, const CameraCalibration& c)
   : m_isTextureInitialized(false)
   , m_calibration(c)
+  , m_windowName(windowName)
 {
+	// Create window with OpenGL support
+	cv::namedWindow(windowName, cv::WINDOW_OPENGL);
 
+	// Resize it exactly to video size
+	cv::resizeWindow(windowName, frameSize.width, frameSize.height);
+
+	// Initialize OpenGL draw callback:
+	cv::setOpenGlContext(windowName);
+	cv::setOpenGlDrawCallback(windowName, ARDrawingContextDrawCallback, this);
+}
+
+ARDrawingContext::~ARDrawingContext()
+{
+	cv::setOpenGlDrawCallback(m_windowName, 0, 0);
 }
 
 void ARDrawingContext::updateBackground(const cv::Mat& frame)
@@ -19,10 +42,15 @@ void ARDrawingContext::updateBackground(const cv::Mat& frame)
   frame.copyTo(m_backgroundImage);
 }
 
+void ARDrawingContext::updateWindow()
+{
+	cv::updateWindow(m_windowName);
+}
+
 void ARDrawingContext::draw()
 {
   glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT); // Clear entire screen:
-  drawCameraFrame();                                   // Render background
+  drawCameraFrame();                                  // Render background
   drawAugmentedScene();                               // Draw AR
 }
 
