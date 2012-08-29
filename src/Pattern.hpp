@@ -14,7 +14,7 @@
 struct Pattern
 {
   cv::Size                  size;
-  cv::Mat                   data;
+  cv::Mat                   frame;
   std::vector<cv::KeyPoint> keypoints;
   cv::Mat                   descriptors;
 
@@ -32,6 +32,10 @@ struct PatternTrackingInfo
   Transformation            pose3d;
 
   void draw2dContour(cv::Mat& image, cv::Scalar color) const;
+
+  /**
+   * Compute pattern pose using PnP algorithm
+   */
   void computePose(const Pattern& pattern, const CameraCalibration& calibration);
 };
 

@@ -8,7 +8,7 @@
 #include <gl/glu.h>
 
 ARDrawingContext::ARDrawingContext(const CameraCalibration& c)
-  : m_textureInitialized(false)
+  : m_isTextureInitialized(false)
   , m_calibration(c)
 {
 
@@ -22,15 +22,15 @@ void ARDrawingContext::updateBackground(const cv::Mat& frame)
 void ARDrawingContext::draw()
 {
   glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT); // Clear entire screen:
-  drawBackground();                                   // Render background
+  drawCameraFrame();                                   // Render background
   drawAugmentedScene();                               // Draw AR
 }
 
 
-void ARDrawingContext::drawBackground()
+void ARDrawingContext::drawCameraFrame()
 {
   // Initialize texture for background image
-  if (!m_textureInitialized)
+  if (!m_isTextureInitialized)
   {
     glGenTextures(1, &m_backgroundTextureId);
     glBindTexture(GL_TEXTURE_2D, m_backgroundTextureId);
@@ -38,7 +38,7 @@ void ARDrawingContext::drawBackground()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    m_textureInitialized = true;
+    m_isTextureInitialized = true;
   }
 
   int w = m_backgroundImage.cols;
@@ -97,7 +97,7 @@ void ARDrawingContext::drawAugmentedScene()
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
 
-  if (patternPresent)
+  if (isPatternPresent)
   {
     // Set the pattern transformation
     Matrix44 glMatrix = patternPose.getMat44();
@@ -139,8 +139,6 @@ void ARDrawingContext::buildProjectionMatrix(const Matrix33& cameraMatrix, int s
   projectionMatrix.data[13] = 0.0f;
   projectionMatrix.data[14] = -2.0f * farPlane * nearPlane / ( farPlane - nearPlane );		
   projectionMatrix.data[15] = 0.0f;
-
-  int d = 0;
 }
 
 

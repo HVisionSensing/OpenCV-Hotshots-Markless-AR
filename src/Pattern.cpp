@@ -11,6 +11,7 @@ void PatternTrackingInfo::computePose(const Pattern& pattern, const CameraCalibr
   cv::Mat Rvec;
   cv::Mat_<float> Tvec;
   cv::Mat raux,taux;
+
   cv::solvePnP(pattern.points3d, points2d, camMatrix, distCoeff,raux,taux);
   raux.convertTo(Rvec,CV_32F);
   taux.convertTo(Tvec ,CV_32F);
@@ -19,8 +20,6 @@ void PatternTrackingInfo::computePose(const Pattern& pattern, const CameraCalibr
   cv::Rodrigues(Rvec, rotMat);
 
   // Copy to transformation matrix
-  pose3d = Transformation();
-
   for (int col=0; col<3; col++)
   {
     for (int row=0; row<3; row++)
@@ -40,6 +39,5 @@ void PatternTrackingInfo::draw2dContour(cv::Mat& image, cv::Scalar color) const
   {
     cv::line(image, points2d[i], points2d[ (i+1) % points2d.size() ], color, 2, CV_AA);
   }
-
 }
 

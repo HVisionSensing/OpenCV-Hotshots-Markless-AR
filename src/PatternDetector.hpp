@@ -6,7 +6,6 @@
 #include "Pattern.hpp"
 
 #include <opencv2/opencv.hpp>
-// Uncomment this line to enable use SURF or SIFT algorithms
 #include <opencv2/nonfree/features2d.hpp>
 
 class PatternDetector
@@ -16,8 +15,7 @@ public:
     cv::Ptr<cv::FeatureDetector>     detector  = cv::Ptr<cv::FeatureDetector>(new cv::SurfFeatureDetector(400,2,2,false)), 
     cv::Ptr<cv::DescriptorExtractor> extractor = cv::Ptr<cv::DescriptorExtractor>(new cv::FREAK(false, false)), 
     //cv::Ptr<cv::DescriptorMatcher>   matcher   = cv::Ptr<cv::DescriptorMatcher>(new cv::FlannBasedMatcher()),
-    cv::Ptr<cv::DescriptorMatcher>   matcher   = cv::Ptr<cv::DescriptorMatcher>(new cv::BFMatcher(cv::NORM_L2, true)),
-    bool buildPyramidLayers = false,
+    cv::Ptr<cv::DescriptorMatcher>   matcher   = cv::Ptr<cv::DescriptorMatcher>(new cv::BFMatcher(cv::NORM_HAMMING, true)),
     bool enableRatioTest = false
     //cv::Ptr<cv::FeatureDetector>     detector  = cv::Ptr<cv::FeatureDetector>(new cv::OrbFeatureDetector()), 
     //cv::Ptr<cv::DescriptorExtractor> extractor = cv::Ptr<cv::DescriptorExtractor>(new cv::OrbDescriptorExtractor()), 
@@ -48,15 +46,9 @@ protected:
   /**
    * Get the grayscale image from the input image.
    * Function performs necessary color conversion if necessary
-   * Supported options - 1 channel (no conversion is done), 3 channels (assuming BGR) and 4 channels (assuming BGRA).
+   * Supported input images types - 1 channel (no conversion is done), 3 channels (assuming BGR) and 4 channels (assuming BGRA).
    */
   static void getGray(const cv::Mat& image, cv::Mat& gray);
-
-  /**
-   * Appends one descriptors set to another. The function requires both matrices have equal number of columns (descriptor size).
-   * The result matrix will have the number of rows equal to sum of (a.rows + b.rows) and number of columns equal to descriptor size.
-   */
-  static cv::Mat appendDescriptors(cv::Mat& a, cv::Mat& b);
 
   bool extractFeatures(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints, cv::Mat& descriptors);
 
@@ -65,22 +57,20 @@ protected:
   static bool refineMatchesWithHomography(const std::vector<cv::KeyPoint>& queryKeypoints, const std::vector<cv::KeyPoint>& trainKeypoints, std::vector<cv::DMatch>& matches, cv::Mat& homography);
 
 private:
-  std::vector<cv::KeyPoint> queryKeypoints;
-  cv::Mat                   queryDescriptors;
-  std::vector<cv::DMatch>   matches;
-  std::vector< std::vector<cv::DMatch> > knnMatches;
-  cv::Mat                   gray;
-  cv::Mat                   warped;
+  std::vector<cv::KeyPoint> m_queryKeypoints;
+  cv::Mat                   m_queryDescriptors;
+  std::vector<cv::DMatch>   m_matches;
+  std::vector< std::vector<cv::DMatch> > m_knnMatches;
 
-  cv::Mat roughHomography;
-  cv::Mat refinedHomography;
-private:
+  cv::Mat                   m_grayImg;
+  cv::Mat                   m_warpedImg;
+  cv::Mat                   m_roughHomography;
+  cv::Mat                   m_refinedHomography;
+ 
   Pattern                          m_pattern;
   cv::Ptr<cv::FeatureDetector>     m_detector;
   cv::Ptr<cv::DescriptorExtractor> m_extractor;
   cv::Ptr<cv::DescriptorMatcher>   m_matcher;
-  bool                             m_buildPyramid;
-
 };
 
 #endif

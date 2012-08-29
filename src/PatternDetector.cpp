@@ -11,295 +11,244 @@
 #include <cassert>
 
 PatternDetector::PatternDetector(cv::Ptr<cv::FeatureDetector> detector, 
-                                 cv::Ptr<cv::DescriptorExtractor> extractor, 
-                                 cv::Ptr<cv::DescriptorMatcher> matcher, 
-                                 bool buildPyramidLayers, 
-                                 bool ratioTest)
-  : m_detector(detector)
-  , m_extractor(extractor)
-  , m_matcher(matcher)
-  , m_buildPyramid(buildPyramidLayers)
-  , enableRatioTest(ratioTest)
-  , enableHomographyRefinement(true)
+    cv::Ptr<cv::DescriptorExtractor> extractor, 
+    cv::Ptr<cv::DescriptorMatcher> matcher, 
+    bool ratioTest)
+    : m_detector(detector)
+    , m_extractor(extractor)
+    , m_matcher(matcher)
+    , enableRatioTest(ratioTest)
+    , enableHomographyRefinement(true)
 {
 }
 
 void PatternDetector::train(const Pattern& pattern)
 {
-  m_pattern = pattern;
+    // Store the pattern object
+    m_pattern = pattern;
 
-  std::vector<cv::Mat> descriptors(1);
-  descriptors[0] = pattern.descriptors.clone();
+    // API of cv::DescriptorMatcher is somewhat tricky
+    // First we clear old train data:
+    m_matcher->clear();
 
-  m_matcher->clear();
-  m_matcher->add(descriptors);
-  m_matcher->train();
+    // That we add vector of descriptors (each descriptors matrix describe one image). 
+    // This allows us to perform search across multiple images:
+    std::vector<cv::Mat> descriptors(1);
+    descriptors[0] = pattern.descriptors.clone(); 
+    m_matcher->add(descriptors);
+
+    // After adding train data perform actual train:
+    m_matcher->train();
 }
 
 void PatternDetector::computePatternFromImage(const cv::Mat& image, Pattern& pattern)
 {
-  int numImages = 4;
-  float step = sqrtf(2.0f);
+    int numImages = 4;
+    float step = sqrtf(2.0f);
 
-  // Store original image in pattern structure
-  pattern.size = cv::Size(image.cols, image.rows);
-  pattern.data = image.clone();
+    // Store original image in pattern structure
+    pattern.size = cv::Size(image.cols, image.rows);
+    pattern.frame = image.clone();
 
-  // Build 2d and 3d contours (3d contour lie in XY plane since it's planar)
-  pattern.points2d.resize(4);
-  pattern.points3d.resize(4);
+    // Build 2d and 3d contours (3d contour lie in XY plane since it's planar)
+    pattern.points2d.resize(4);
+    pattern.points3d.resize(4);
 
-  // Image dimensions
-  const float w = image.cols;
-  const float h = image.rows;
+    // Image dimensions
+    const float w = image.cols;
+    const float h = image.rows;
 
-  // Normalized dimensions:
-  const float maxSize = std::max(w,h);
-  const float unitW = w / maxSize;
-  const float unitH = h / maxSize;
+    // Normalized dimensions:
+    const float maxSize = std::max(w,h);
+    const float unitW = w / maxSize;
+    const float unitH = h / maxSize;
 
-  pattern.points2d[0] = cv::Point2f(0,0);
-  pattern.points2d[1] = cv::Point2f(w,0);
-  pattern.points2d[2] = cv::Point2f(w,h);
-  pattern.points2d[3] = cv::Point2f(0,h);
+    pattern.points2d[0] = cv::Point2f(0,0);
+    pattern.points2d[1] = cv::Point2f(w,0);
+    pattern.points2d[2] = cv::Point2f(w,h);
+    pattern.points2d[3] = cv::Point2f(0,h);
 
-  pattern.points3d[0] = cv::Point3f(-unitW, -unitH, 0);
-  pattern.points3d[1] = cv::Point3f( unitW, -unitH, 0);
-  pattern.points3d[2] = cv::Point3f( unitW,  unitH, 0);
-  pattern.points3d[3] = cv::Point3f(-unitW,  unitH, 0);
+    pattern.points3d[0] = cv::Point3f(-unitW, -unitH, 0);
+    pattern.points3d[1] = cv::Point3f( unitW, -unitH, 0);
+    pattern.points3d[2] = cv::Point3f( unitW,  unitH, 0);
+    pattern.points3d[3] = cv::Point3f(-unitW,  unitH, 0);
 
-  cv::Mat gray;
-  getGray(image, gray);
-  extractFeatures(gray, pattern.keypoints, pattern.descriptors);
-
-  // Detect features on pyramid levels only if the feature detector is not scale-invariant (GFTT, ORB, FAST etc)
-  // The m_buildPyramid indicates this case and we will simulate scale-invariant by extracting a lot of features from numImages downsampled images
-  if (m_buildPyramid)
-  {
-    std::vector<cv::KeyPoint> kpts;
-    cv::Mat descriptors;
-    
-    for (int i = 0; i < numImages; i++)
-    {
-      float scale = step * (i+1);
-      cv::Mat downsampled;
-
-      // Resize image down to required size
-      cv::Size dstSize(image.cols / scale, image.rows / scale);
-      cv::resize(gray, downsampled, dstSize, 0, 0, cv::INTER_AREA);
-
-      if (!extractFeatures(downsampled, kpts, descriptors))
-        break;
-
-      // Scale features to dimensions of original image
-      for (size_t k = 0; k < kpts.size(); k++)
-      {
-        kpts[k].pt *= scale;
-        kpts[i].size *= scale;
-      }
-
-      // Add keypoints
-      std::copy(kpts.begin(), kpts.end(), std::back_inserter(pattern.keypoints));
-
-      // Add descriptors
-      pattern.descriptors = appendDescriptors(pattern.descriptors, descriptors);
-    }
-  }
+    cv::Mat gray;
+    getGray(image, gray);
+    extractFeatures(gray, pattern.keypoints, pattern.descriptors);
 }
 
 cv::Mat getMatchesImage(cv::Mat query, cv::Mat pattern, const std::vector<cv::KeyPoint>& queryKp, const std::vector<cv::KeyPoint>& trainKp, const std::vector<cv::DMatch>&matches)
 {
-   cv::Mat outImg;
-   cv::drawMatches(query, queryKp, pattern, trainKp, matches, outImg);
-   return outImg;
+    cv::Mat outImg;
+    cv::drawMatches(query, queryKp, pattern, trainKp, matches, outImg);
+    return outImg;
 }
 
 bool PatternDetector::findPattern(const cv::Mat& image, PatternTrackingInfo& info)
 {
-  getGray(image, gray);
-  extractFeatures(gray, queryKeypoints, queryDescriptors);
-  getMatches(queryDescriptors, matches);
+    getGray(image, m_grayImg);
+    extractFeatures(m_grayImg, m_queryKeypoints, m_queryDescriptors);
+    getMatches(m_queryDescriptors, m_matches);
 
 #if _DEBUG
-  cv::imwrite("RoughMatches.png", getMatchesImage(image, m_pattern.data, queryKeypoints, m_pattern.keypoints, matches));
+    cv::imwrite("RoughMatches.png", getMatchesImage(image, m_pattern.frame, m_queryKeypoints, m_pattern.keypoints, m_matches));
 #endif
 
 #if _DEBUG
-  cv::Mat outImg;
-  cv::Mat tmp = image.clone();
+    cv::Mat outImg;
+    cv::Mat tmp = image.clone();
 #endif
 
-  bool homographyFound = refineMatchesWithHomography(queryKeypoints, m_pattern.keypoints, matches, roughHomography);
+    bool homographyFound = refineMatchesWithHomography(m_queryKeypoints, m_pattern.keypoints, m_matches, m_roughHomography);
 
-  if (homographyFound)
-  {
-    //cv::imwrite("RefinedUsingRansacMatches1.png", getMatchesImage(image, m_pattern.data, queryKeypoints, m_pattern.keypoints, matches));
-
-    if (enableHomographyRefinement)
+    if (homographyFound)
     {
-      cv::warpPerspective(gray, warped, roughHomography, m_pattern.size, cv::WARP_INVERSE_MAP | cv::INTER_CUBIC);
+        //cv::imwrite("RefinedUsingRansacMatches1.png", getMatchesImage(image, m_pattern.data, queryKeypoints, m_pattern.keypoints, matches));
+
+        if (enableHomographyRefinement)
+        {
+            cv::warpPerspective(m_grayImg, m_warpedImg, m_roughHomography, m_pattern.size, cv::WARP_INVERSE_MAP | cv::INTER_CUBIC);
 #if _DEBUG
-      cv::imshow("Warped image",warped);
+            cv::imshow("Warped image",m_warpedImg);
 #endif
 
-      // Get refined matches:
-      std::vector<cv::KeyPoint> warpedKeypoints;
-      std::vector<cv::DMatch> refinedMatches;
+            // Get refined matches:
+            std::vector<cv::KeyPoint> warpedKeypoints;
+            std::vector<cv::DMatch> refinedMatches;
 
-      extractFeatures(warped, warpedKeypoints, queryDescriptors);
-      getMatches(queryDescriptors, refinedMatches);
+            extractFeatures(m_warpedImg, warpedKeypoints, m_queryDescriptors);
+            getMatches(m_queryDescriptors, refinedMatches);
 
-      homographyFound = refineMatchesWithHomography(warpedKeypoints, m_pattern.keypoints, refinedMatches, refinedHomography);
+            homographyFound = refineMatchesWithHomography(warpedKeypoints, m_pattern.keypoints, refinedMatches, m_refinedHomography);
 #if _DEBUG
-      cv::imwrite("MatchesWithRefinedPose.png", getMatchesImage(warped, m_pattern.data, warpedKeypoints, m_pattern.keypoints, refinedMatches));
+            cv::imwrite("MatchesWithRefinedPose.png", getMatchesImage(m_warpedImg, m_pattern.frame, warpedKeypoints, m_pattern.keypoints, refinedMatches));
 #endif
-      info.homography = roughHomography * refinedHomography;
+            info.homography = m_roughHomography * m_refinedHomography;
 
-      // Transform contour with rough homography
+            // Transform contour with rough homography
 #if _DEBUG
-      cv::perspectiveTransform(m_pattern.points2d, info.points2d, roughHomography);
-      info.draw2dContour(tmp, CV_RGB(0,200,0));
+            cv::perspectiveTransform(m_pattern.points2d, info.points2d, m_roughHomography);
+            info.draw2dContour(tmp, CV_RGB(0,200,0));
 #endif
 
-      // Transform contour with precise homography
-      cv::perspectiveTransform(m_pattern.points2d, info.points2d, info.homography);
+            // Transform contour with precise homography
+            cv::perspectiveTransform(m_pattern.points2d, info.points2d, info.homography);
 #if _DEBUG
-      info.draw2dContour(tmp, CV_RGB(200,0,0));
+            info.draw2dContour(tmp, CV_RGB(200,0,0));
 #endif
+        }
+        else
+        {
+            info.homography = m_roughHomography;
+
+            // Transform contour with rough homography
+            cv::perspectiveTransform(m_pattern.points2d, info.points2d, m_roughHomography);
+#if _DEBUG
+            info.draw2dContour(tmp, CV_RGB(0,200,0));
+#endif
+        }
     }
-    else
+
+#if _DEBUG
+    if (1)
     {
-      info.homography = roughHomography;
-
-      // Transform contour with rough homography
-      cv::perspectiveTransform(m_pattern.points2d, info.points2d, roughHomography);
-#if _DEBUG
-      info.draw2dContour(tmp, CV_RGB(0,200,0));
-#endif
+        cv::drawMatches( tmp, m_queryKeypoints, m_pattern.frame, m_pattern.keypoints, m_matches, outImg);
+        cv::imshow("Matches", outImg);
     }
-  }
-
-#if _DEBUG
-  if (1)
-  {
-    cv::drawMatches( tmp, queryKeypoints, m_pattern.data, m_pattern.keypoints, matches, outImg);
-    cv::imshow("Matches", outImg);
-  }
-  std::cout << "Features:" << std::setw(4) << queryKeypoints.size() << " Matches: " << std::setw(4) << matches.size() << std::endl;
+    std::cout << "Features:" << std::setw(4) << m_queryKeypoints.size() << " Matches: " << std::setw(4) << m_matches.size() << std::endl;
 #endif
-  
-  return homographyFound;
+
+    return homographyFound;
 }
 
 void PatternDetector::getGray(const cv::Mat& image, cv::Mat& gray)
 {
-  if (image.channels()  == 3)
-    cv::cvtColor(image, gray, CV_BGR2GRAY);
-  else if (image.channels() == 4)
-    cv::cvtColor(image, gray, CV_BGRA2GRAY);
-  else if (image.channels() == 1)
-    gray = image;
-}
-
-cv::Mat PatternDetector::appendDescriptors(cv::Mat& a, cv::Mat& b)
-{
-  assert(a.cols == b.cols);
-  assert(a.type() == b.type());
-
-  cv::Mat result(a.rows + b.rows, a.cols, a.type());
-
-  if (a.type() == CV_32F)
-  {
-    for (int r = 0; r < a.rows; r++)
-      for (int c = 0; c < a.cols; c++)
-        result.at<float>(r,c) = a.at<float>(r,c);
-
-    for (int r = 0; r < b.rows; r++)
-      for (int c = 0; c < b.cols; c++)
-        result.at<float>(r+a.rows,c) = b.at<float>(r,c);
-  }
-  else if (a.type() == CV_8UC1)
-  {
-    for (int r = 0; r < a.rows; r++)
-      for (int c = 0; c < a.cols; c++)
-        result.at<unsigned char>(r,c) = a.at<unsigned char>(r,c);
-
-    for (int r = 0; r < b.rows; r++)
-      for (int c = 0; c < b.cols; c++)
-        result.at<unsigned char>(r + a.rows,c) = b.at<unsigned char>(r,c);
-  }
-
-  return result;
+    if (image.channels()  == 3)
+        cv::cvtColor(image, gray, CV_BGR2GRAY);
+    else if (image.channels() == 4)
+        cv::cvtColor(image, gray, CV_BGRA2GRAY);
+    else if (image.channels() == 1)
+        gray = image;
 }
 
 bool PatternDetector::extractFeatures(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints, cv::Mat& descriptors)
 {
-  assert(!image.empty());
-  assert(image.channels() == 1);
+    assert(!image.empty());
+    assert(image.channels() == 1);
 
-  m_detector->detect(image, keypoints);
-  if (keypoints.empty())
-    return false;
+    m_detector->detect(image, keypoints);
+    if (keypoints.empty())
+        return false;
 
-  m_extractor->compute(image, keypoints, descriptors);
-  if (keypoints.empty())
-    return false;
+    m_extractor->compute(image, keypoints, descriptors);
+    if (keypoints.empty())
+        return false;
 
-  return true;
+    return true;
 }
 
 void PatternDetector::getMatches(const cv::Mat& queryDescriptors, std::vector<cv::DMatch>& matches)
 {
-  matches.clear();
+    // To avoid NaN's when best match has zero distance we will use inversed ratio. 
+    const float minRatio = 1.f / 1.5f;
 
-  if (enableRatioTest)
-  {
-    m_matcher->knnMatch(queryDescriptors, knnMatches, 2);
+    matches.clear();
 
-    for (size_t i=0; i<knnMatches.size(); i++)
+    if (enableRatioTest)
     {
-      cv::DMatch& bestMatch   = knnMatches[i][0];
-      cv::DMatch& betterMatch = knnMatches[i][1];
+        // KNN match will return 2 nearest matches for each query descriptor
+        m_matcher->knnMatch(queryDescriptors, m_knnMatches, 2);
 
-      float distanceRatio = bestMatch.distance / betterMatch.distance;
-      if (distanceRatio < 0.75)
-      {
-        matches.push_back(bestMatch);
-      }
+        for (size_t i=0; i<m_knnMatches.size(); i++)
+        {
+            const cv::DMatch& bestMatch   = m_knnMatches[i][0];
+            const cv::DMatch& betterMatch = m_knnMatches[i][1];
+
+            float distanceRatio = bestMatch.distance / betterMatch.distance;
+            
+            // Pass only matches where distance ratio between 
+            // nearest matches is greater than 1.5 (distinct criteria)
+            if (distanceRatio < minRatio)
+            {
+                matches.push_back(bestMatch);
+            }
+        }
     }
-  }
-  else
-  {
-    m_matcher->match(queryDescriptors, matches);
-  }
+    else
+    {
+        m_matcher->match(queryDescriptors, matches);
+    }
 }
 
 bool PatternDetector::refineMatchesWithHomography(const std::vector<cv::KeyPoint>& queryKeypoints,const std::vector<cv::KeyPoint>& trainKeypoints, std::vector<cv::DMatch>& matches, cv::Mat& homography)
 {
-  const int MinMatchesAllowed = 8;
+    const int minNumberMatchesAllowed = 8;
 
-  if (matches.size() < MinMatchesAllowed)
-    return false;
+    if (matches.size() < minNumberMatchesAllowed)
+        return false;
 
-  std::vector<cv::Point2f> srcKp(matches.size()), dstKp(matches.size());
-  for (size_t i=0; i<matches.size(); i++)
-  {
-    srcKp[i] = trainKeypoints[matches[i].trainIdx].pt;
-    dstKp[i] = queryKeypoints[matches[i].queryIdx].pt;
-  }
+    // Prepare data for cv::findHomography
+    std::vector<cv::Point2f> srcPoints(matches.size());
+    std::vector<cv::Point2f> dstPoints(matches.size());
 
-  std::vector<unsigned char> mask(srcKp.size());
-  homography = cv::findHomography(srcKp, dstKp, CV_FM_RANSAC, 3, mask);
+    for (size_t i = 0; i < matches.size(); i++)
+    {
+        srcPoints[i] = trainKeypoints[matches[i].trainIdx].pt;
+        dstPoints[i] = queryKeypoints[matches[i].queryIdx].pt;
+    }
 
-  size_t numberOfInliers = std::count(mask.begin(), mask.end(), 1);
+    // Find homography matrix and get inliers mask
+    std::vector<unsigned char> inliersMask(srcPoints.size());
+    homography = cv::findHomography(srcPoints, dstPoints, CV_FM_RANSAC, 3, inliersMask);
 
-  std::vector<cv::DMatch> inliers;
-  for (size_t i=0; i<mask.size(); i++)
-  {
-    if (mask[i])
-      inliers.push_back(matches[i]);
-  }
+    std::vector<cv::DMatch> inliers;
+    for (size_t i=0; i<inliersMask.size(); i++)
+    {
+        if (inliersMask[i])
+            inliers.push_back(matches[i]);
+    }
 
-  matches.swap(inliers);
-  return matches.size() > MinMatchesAllowed;
+    matches.swap(inliers);
+    return matches.size() > minNumberMatchesAllowed;
 }

@@ -15,7 +15,7 @@ class ARDrawingContext
 public:
   ARDrawingContext(const CameraCalibration& c);
 
-  bool                patternPresent;
+  bool                isPatternPresent;
   Transformation      patternPose;
 
   //! Request the redraw of the OpenGl window
@@ -26,7 +26,7 @@ public:
 
 private:
   //! Draws the background with video
-  void drawBackground();
+  void drawCameraFrame();
 
   //! Draws the AR
   void drawAugmentedScene();
@@ -41,7 +41,7 @@ private:
   void drawCubeModel();
 
 private:
-  bool               m_textureInitialized;
+  bool               m_isTextureInitialized;
   unsigned int       m_backgroundTextureId;
   CameraCalibration  m_calibration;
   cv::Mat            m_backgroundImage;
