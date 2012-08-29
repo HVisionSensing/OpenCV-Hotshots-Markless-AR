@@ -11,26 +11,37 @@
 
 ////////////////////////////////////////////////////////////////////
 // File includes:
-#include "GeometryTypes.hpp"
+#include <opencv2/opencv.hpp>
 
 /**
- * A camera calibraiton class that stores intrinsic matrix and distorsion coefficients.
- */
+* A camera calibration class that stores intrinsic matrix and distortion coefficients.
+*/
 class CameraCalibration
 {
 public:
-  CameraCalibration();
-  CameraCalibration(float fx, float fy, float cx, float cy);
-  CameraCalibration(float fx, float fy, float cx, float cy, float distorsionCoeff[4]);
-  
-  void getMatrix34(float cparam[3][4]) const;
+    CameraCalibration();
+    CameraCalibration(float fx, float fy, float cx, float cy);
+    CameraCalibration(float fx, float fy, float cx, float cy, float distorsionCoeff[5]);
 
-  const Matrix33& getIntrinsic() const;
-  const Vector4&  getDistorsion() const;
-  
+    void getMatrix34(float cparam[3][4]) const;
+
+    const cv::Matx33f& getIntrinsic() const;
+    const cv::Mat_<float>&  getDistorsion() const;
+
+    float& fx();
+    float& fy();
+
+    float& cx();
+    float& cy();
+
+    float fx() const;
+    float fy() const;
+
+    float cx() const;
+    float cy() const;
 private:
-  Matrix33 m_intrinsic;
-  Vector4  m_distorsion;
+    cv::Matx33f     m_intrinsic;
+    cv::Mat_<float> m_distortion;
 };
 
 #endif

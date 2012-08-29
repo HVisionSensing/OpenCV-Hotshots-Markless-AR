@@ -89,7 +89,7 @@ void ARDrawingContext::drawAugmentedScene()
   Matrix44 projectionMatrix;
   int w = m_backgroundImage.cols;
   int h = m_backgroundImage.rows;
-  buildProjectionMatrix(m_calibration.getIntrinsic(), w, h, projectionMatrix);
+  buildProjectionMatrix(m_calibration, w, h, projectionMatrix);
 
   glMatrixMode(GL_PROJECTION);
   glLoadMatrixf(projectionMatrix.data);
@@ -109,16 +109,16 @@ void ARDrawingContext::drawAugmentedScene()
   }
 }
 
-void ARDrawingContext::buildProjectionMatrix(const Matrix33& cameraMatrix, int screen_width, int screen_height, Matrix44& projectionMatrix)
+void ARDrawingContext::buildProjectionMatrix(const CameraCalibration& calibration, int screen_width, int screen_height, Matrix44& projectionMatrix)
 {
   float nearPlane = 0.01f;  // Near clipping distance
   float farPlane  = 100.0f;  // Far clipping distance
 
   // Camera parameters
-  float f_x = cameraMatrix.data[0]; // Focal length in x axis
-  float f_y = cameraMatrix.data[4]; // Focal length in y axis (usually the same?)
-  float c_x = cameraMatrix.data[2]; // Camera primary point x
-  float c_y = cameraMatrix.data[5]; // Camera primary point y
+  float f_x = calibration.fx(); // Focal length in x axis
+  float f_y = calibration.fy(); // Focal length in y axis (usually the same?)
+  float c_x = calibration.cx(); // Camera primary point x
+  float c_y = calibration.cy(); // Camera primary point y
 
   projectionMatrix.data[0] = -2.0f * f_x / screen_width;
   projectionMatrix.data[1] = 0.0f;

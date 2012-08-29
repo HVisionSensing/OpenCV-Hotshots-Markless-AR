@@ -4,15 +4,11 @@
 
 void PatternTrackingInfo::computePose(const Pattern& pattern, const CameraCalibration& calibration)
 {
-  cv::Mat camMatrix, distCoeff;
-  cv::Mat(3,3, CV_32F, const_cast<float*>(&calibration.getIntrinsic().data[0])).copyTo(camMatrix);
-  cv::Mat(4,1, CV_32F, const_cast<float*>(&calibration.getDistorsion().data[0])).copyTo(distCoeff);
-
   cv::Mat Rvec;
   cv::Mat_<float> Tvec;
   cv::Mat raux,taux;
 
-  cv::solvePnP(pattern.points3d, points2d, camMatrix, distCoeff,raux,taux);
+  cv::solvePnP(pattern.points3d, points2d, calibration.getIntrinsic(), calibration.getDistorsion(),raux,taux);
   raux.convertTo(Rvec,CV_32F);
   taux.convertTo(Tvec ,CV_32F);
 
@@ -35,7 +31,7 @@ void PatternTrackingInfo::computePose(const Pattern& pattern, const CameraCalibr
 
 void PatternTrackingInfo::draw2dContour(cv::Mat& image, cv::Scalar color) const
 {
-  for (size_t i=0; i < points2d.size();i++)
+  for (size_t i = 0; i < points2d.size(); i++)
   {
     cv::line(image, points2d[i], points2d[ (i+1) % points2d.size() ], color, 2, CV_AA);
   }
