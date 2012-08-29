@@ -10,4 +10,9 @@ Usage
 ===============================
 To build this app use the CMake to generate project files for your IDE.
 You will need to have OpenCV built with OpenGL support in order to run the demo.
-Enable WITH_OPENGL=YES flag when building OpenCV to enable OpenGL support.
+
+How to enable OpenGL Support in OpenCV
+===============================
+ * Windows: Enable WITH_OPENGL=YES flag when building OpenCV to enable OpenGL support.
+ * Linux: sudo apt-get install libgtkglext1 libgtkglext1-dev first
+ * Mac: Install QT4 and then configure OpenCV with QT and OpenGL
