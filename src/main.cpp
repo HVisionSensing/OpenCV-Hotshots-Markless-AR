@@ -150,7 +150,6 @@ bool processFrame(const cv::Mat& cameraFrame, ARPipeline& pipeline, ARDrawingCon
     // Request redraw of the window:
     drawingCtx.updateWindow();
 
-    
     // Read the keyboard input:
     int keyCode = cv::waitKey(5); 
 
