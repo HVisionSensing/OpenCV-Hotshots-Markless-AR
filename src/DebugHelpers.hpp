@@ -4,6 +4,7 @@
 #include <string>
 #include <sstream>
 
+// Does lexical cast of the input argument to string
 template <typename T>
 std::string ToString(const T& value)
 {
@@ -14,6 +15,7 @@ std::string ToString(const T& value)
 
 namespace cv
 {
+    // This function used to show and save the image to the disk (used for during chapter writing).
     inline void showAndSave(std::string name, const cv::Mat& m)
     {
         cv::imshow(name, m);
@@ -21,6 +23,7 @@ namespace cv
 		//cv::waitKey(25);
     }
 
+    // Draw matches between two images
 	inline cv::Mat getMatchesImage(cv::Mat query, cv::Mat pattern, const std::vector<cv::KeyPoint>& queryKp, const std::vector<cv::KeyPoint>& trainKp, std::vector<cv::DMatch> matches, int maxMatchesDrawn)
 	{
 		cv::Mat outImg;

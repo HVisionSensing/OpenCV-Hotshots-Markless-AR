@@ -31,7 +31,7 @@ public:
     * Initialize Pattern structure from the input image.
     * This function finds the feature points and extract descriptors for them.
     */
-    void computePatternFromImage(const cv::Mat& image, Pattern& pattern) const;
+    void buildPatternFromImage(const cv::Mat& image, Pattern& pattern) const;
 
     /**
     * Tries to find a @pattern object on given @image. 

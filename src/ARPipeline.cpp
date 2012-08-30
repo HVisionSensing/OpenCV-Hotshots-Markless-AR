@@ -5,7 +5,7 @@
 ARPipeline::ARPipeline(const cv::Mat& patternImage, const CameraCalibration& calibration)
   : m_calibration(calibration)
 {
-  m_patternDetector.computePatternFromImage(patternImage, m_pattern);
+  m_patternDetector.buildPatternFromImage(patternImage, m_pattern);
   m_patternDetector.train(m_pattern);
 }
 

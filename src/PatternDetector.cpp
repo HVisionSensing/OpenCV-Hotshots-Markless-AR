@@ -44,7 +44,7 @@ void PatternDetector::train(const Pattern& pattern)
     m_matcher->train();
 }
 
-void PatternDetector::computePatternFromImage(const cv::Mat& image, Pattern& pattern) const
+void PatternDetector::buildPatternFromImage(const cv::Mat& image, Pattern& pattern) const
 {
     int numImages = 4;
     float step = sqrtf(2.0f);
@@ -84,8 +84,13 @@ void PatternDetector::computePatternFromImage(const cv::Mat& image, Pattern& pat
 
 bool PatternDetector::findPattern(const cv::Mat& image, PatternTrackingInfo& info)
 {
+	// Convert input image to gray
     getGray(image, m_grayImg);
+	
+	// Extract feature points from input gray image
     extractFeatures(m_grayImg, m_queryKeypoints, m_queryDescriptors);
+	
+	// Get matches with current pattern
     getMatches(m_queryDescriptors, m_matches);
 
 #if _DEBUG
@@ -96,6 +101,7 @@ bool PatternDetector::findPattern(const cv::Mat& image, PatternTrackingInfo& inf
     cv::Mat tmp = image.clone();
 #endif
 
+	// Find homography transformation and detect good matches
     bool homographyFound = refineMatchesWithHomography(
         m_queryKeypoints, 
         m_pattern.keypoints, 
@@ -108,20 +114,25 @@ bool PatternDetector::findPattern(const cv::Mat& image, PatternTrackingInfo& inf
 #if _DEBUG
         cv::showAndSave("Refined matches using RANSAC", getMatchesImage(image, m_pattern.frame, m_queryKeypoints, m_pattern.keypoints, m_matches, 100));
 #endif
+		// If homography refinement enabled improve found transformation
         if (enableHomographyRefinement)
         {
+			// Warp image using found homography
             cv::warpPerspective(m_grayImg, m_warpedImg, m_roughHomography, m_pattern.size, cv::WARP_INVERSE_MAP | cv::INTER_CUBIC);
 #if _DEBUG
             cv::showAndSave("Warped image",m_warpedImg);
 #endif
-
             // Get refined matches:
             std::vector<cv::KeyPoint> warpedKeypoints;
             std::vector<cv::DMatch> refinedMatches;
 
+			// Detect features on warped image
             extractFeatures(m_warpedImg, warpedKeypoints, m_queryDescriptors);
+
+			// Match with pattern
             getMatches(m_queryDescriptors, refinedMatches);
 
+			// Estimate new refinement homography
             homographyFound = refineMatchesWithHomography(
                 warpedKeypoints, 
                 m_pattern.keypoints, 
@@ -131,6 +142,7 @@ bool PatternDetector::findPattern(const cv::Mat& image, PatternTrackingInfo& inf
 #if _DEBUG
             cv::showAndSave("MatchesWithRefinedPose", getMatchesImage(m_warpedImg, m_pattern.grayImg, warpedKeypoints, m_pattern.keypoints, refinedMatches, 100));
 #endif
+			// Get a result homography as result of matrix product of refined and rough homographies:
             info.homography = m_roughHomography * m_refinedHomography;
 
             // Transform contour with rough homography
@@ -196,13 +208,13 @@ bool PatternDetector::extractFeatures(const cv::Mat& image, std::vector<cv::KeyP
 
 void PatternDetector::getMatches(const cv::Mat& queryDescriptors, std::vector<cv::DMatch>& matches)
 {
-    // To avoid NaN's when best match has zero distance we will use inversed ratio. 
-    const float minRatio = 1.f / 1.5f;
-
     matches.clear();
 
     if (enableRatioTest)
     {
+        // To avoid NaN's when best match has zero distance we will use inversed ratio. 
+        const float minRatio = 1.f / 1.5f;
+        
         // KNN match will return 2 nearest matches for each query descriptor
         m_matcher->knnMatch(queryDescriptors, m_knnMatches, 2);
 
@@ -223,6 +235,7 @@ void PatternDetector::getMatches(const cv::Mat& queryDescriptors, std::vector<cv
     }
     else
     {
+        // Perform regular match
         m_matcher->match(queryDescriptors, matches);
     }
 }
@@ -253,7 +266,11 @@ bool PatternDetector::refineMatchesWithHomography
 
     // Find homography matrix and get inliers mask
     std::vector<unsigned char> inliersMask(srcPoints.size());
-    homography = cv::findHomography(srcPoints, dstPoints, CV_FM_RANSAC, reprojectionThreshold, inliersMask);
+    homography = cv::findHomography(srcPoints, 
+                                    dstPoints, 
+                                    CV_FM_RANSAC, 
+                                    reprojectionThreshold, 
+                                    inliersMask);
 
     std::vector<cv::DMatch> inliers;
     for (size_t i=0; i<inliersMask.size(); i++)
