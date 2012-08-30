@@ -52,6 +52,7 @@ void ARDrawingContext::draw()
   glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT); // Clear entire screen:
   drawCameraFrame();                                  // Render background
   drawAugmentedScene();                               // Draw AR
+  glFlush();
 }
 
 

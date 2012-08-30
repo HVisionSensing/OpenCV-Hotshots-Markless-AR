@@ -2,6 +2,7 @@
 // File includes:
 #include "ARDrawingContext.hpp"
 #include "ARPipeline.hpp"
+#include "DebugHelpers.hpp"
 
 ////////////////////////////////////////////////////////////////////
 // Standard includes:
@@ -9,11 +10,25 @@
 #include <gl/gl.h>
 #include <gl/glu.h>
 
-void drawAR(void* param);
+/**
+ * Processes a recorded video or live view from web-camera and allows you to adjust homography refinement and 
+ * reprojection threshold in runtime.
+ */
 void processVideo(const cv::Mat& patternImage, CameraCalibration& calibration, cv::VideoCapture& capture);
+
+/**
+ * Processes single image. The processing goes in a loop.
+ * It allows you to control the detection process by adjusting homography refinement switch and 
+ * reprojection threshold in runtime.
+ */
 void processSingleImage(const cv::Mat& patternImage, CameraCalibration& calibration, const cv::Mat& image);
 
-static const char * ARWindowName = "Markerless AR";
+/**
+ * Performs full detection routine on camera frame and draws the scene using drawing context.
+ * In addition, this function draw overlay with debug information on top of the AR window.
+ * Returns true if processing loop should be stopped; otherwise - false.
+ */
+bool processFrame(const cv::Mat& cameraFrame, ARPipeline& pipeline, ARDrawingContext& drawingCtx);
 
 int main(int argc, const char * argv[])
 {
@@ -34,8 +49,6 @@ int main(int argc, const char * argv[])
         std::cout << "Input image cannot be read" << std::endl;
         return 2;
     }
-
-    //cv::resize(patternImage, patternImage, cv::Size(patternImage.cols/2, patternImage.rows/2));
 
     if (argc == 2)
     {
@@ -72,45 +85,96 @@ void processVideo(const cv::Mat& patternImage, CameraCalibration& calibration, c
 	// Grab first frame to get the frame dimensions
 	cv::Mat currentFrame;  
 	capture >> currentFrame;
+
+    // Check the capture succeeded:
+    if (currentFrame.empty())
+    {
+        std::cout << "Cannot open video capture device" << std::endl;
+        return;
+    }
+
 	cv::Size frameSize(currentFrame.cols, currentFrame.rows);
 
     ARPipeline pipeline(patternImage, calibration);
-    ARDrawingContext drawingCtx(ARWindowName, frameSize, calibration);
+    ARDrawingContext drawingCtx("Markerless AR", frameSize, calibration);
 
-    while (capture.grab() && capture.retrieve(currentFrame))
+    bool shouldQuit = false;
+    do
     {
-        drawingCtx.updateBackground(currentFrame);
+        capture >> currentFrame;
+        if (currentFrame.empty())
+        {
+            shouldQuit = true;
+            continue;
+        }
 
-        // Process frame and update it's location
-        drawingCtx.isPatternPresent = pipeline.processFrame(currentFrame);
-        drawingCtx.patternPose = pipeline.getPatternLocation();
-
-        // Invoke redraw of the OpenGL window
-        drawingCtx.updateBackground(currentFrame);
-
-        // Wait for keyboard input for 1 ms
-        int keyCode = cv::waitKey();
-        
-        // Quit if user pressed 'q' or ESC button
-        if (keyCode == 'q' || keyCode == 27) 
-            break;
-    }
+        shouldQuit = processFrame(currentFrame, pipeline, drawingCtx);
+    } while (!shouldQuit);
 }
 
 void processSingleImage(const cv::Mat& patternImage, CameraCalibration& calibration, const cv::Mat& image)
 {
+    cv::Size frameSize(image.cols, image.rows);
     ARPipeline pipeline(patternImage, calibration);
-	bool patternPresent = pipeline.processFrame(image);
-	cv::waitKey(-1);
+    ARDrawingContext drawingCtx("Markerless AR", frameSize, calibration);
 
-    ARDrawingContext drawingCtx(ARWindowName, cv::Size(image.cols, image.rows), calibration);
-    drawingCtx.updateBackground(image);
-    drawingCtx.isPatternPresent = patternPresent;
+    bool shouldQuit = false;
+    do
+    {
+        shouldQuit = processFrame(image, pipeline, drawingCtx);
+    } while (!shouldQuit);
+}
+
+bool processFrame(const cv::Mat& cameraFrame, ARPipeline& pipeline, ARDrawingContext& drawingCtx)
+{
+    // Clone image used for background (we will draw overlay on it)
+    cv::Mat img = cameraFrame.clone();
+
+    // Draw information:
+    if (pipeline.m_patternDetector.enableHomographyRefinement)
+        cv::putText(img, "Pose refinement: On   ('h' to switch off)", cv::Point(10,15), CV_FONT_HERSHEY_PLAIN, 1, CV_RGB(0,200,0));
+    else
+        cv::putText(img, "Pose refinement: Off  ('h' to switch on)",  cv::Point(10,15), CV_FONT_HERSHEY_PLAIN, 1, CV_RGB(0,200,0));
+
+    cv::putText(img, "RANSAC threshold: " + ToString(pipeline.m_patternDetector.homographyReprojectionThreshold) + "( Use'-'/'+' to adjust)", cv::Point(10, 30), CV_FONT_HERSHEY_PLAIN, 1, CV_RGB(0,200,0));
+
+    // Set a new camera frame:
+    drawingCtx.updateBackground(img);
+
+    // Find a pattern and update it's detection status:
+    drawingCtx.isPatternPresent = pipeline.processFrame(cameraFrame);
+
+    // Update a pattern pose:
     drawingCtx.patternPose = pipeline.getPatternLocation();
 
-	while (cv::waitKey() != 27)
-	{
-		drawingCtx.updateWindow();
-	}
+    // Request redraw of the window:
+    drawingCtx.updateWindow();
+
+    
+    // Read the keyboard input:
+    int keyCode = cv::waitKey(5); 
+
+    bool shouldQuit = false;
+    if (keyCode == '+' || keyCode == '=')
+    {
+        pipeline.m_patternDetector.homographyReprojectionThreshold += 0.2f;
+        pipeline.m_patternDetector.homographyReprojectionThreshold = std::min(10.0f, pipeline.m_patternDetector.homographyReprojectionThreshold);
+    }
+    else if (keyCode == '-')
+    {
+        pipeline.m_patternDetector.homographyReprojectionThreshold -= 0.2f;
+        pipeline.m_patternDetector.homographyReprojectionThreshold = std::max(0.0f, pipeline.m_patternDetector.homographyReprojectionThreshold);
+    }
+    else if (keyCode == 'h')
+    {
+        pipeline.m_patternDetector.enableHomographyRefinement = !pipeline.m_patternDetector.enableHomographyRefinement;
+    }
+    else if (keyCode == 27 || keyCode == 'q')
+    {
+        shouldQuit = true;
+    }
+
+    return shouldQuit;
 }
+
 

@@ -20,8 +20,10 @@ PatternDetector::PatternDetector(cv::Ptr<cv::FeatureDetector> detector,
     , m_matcher(matcher)
     , enableRatioTest(ratioTest)
     , enableHomographyRefinement(true)
+    , homographyReprojectionThreshold(3)
 {
 }
+
 
 void PatternDetector::train(const Pattern& pattern)
 {
@@ -42,7 +44,7 @@ void PatternDetector::train(const Pattern& pattern)
     m_matcher->train();
 }
 
-void PatternDetector::computePatternFromImage(const cv::Mat& image, Pattern& pattern)
+void PatternDetector::computePatternFromImage(const cv::Mat& image, Pattern& pattern) const
 {
     int numImages = 4;
     float step = sqrtf(2.0f);
@@ -50,7 +52,8 @@ void PatternDetector::computePatternFromImage(const cv::Mat& image, Pattern& pat
     // Store original image in pattern structure
     pattern.size = cv::Size(image.cols, image.rows);
     pattern.frame = image.clone();
-
+    getGray(image, pattern.grayImg);
+    
     // Build 2d and 3d contours (3d contour lie in XY plane since it's planar)
     pattern.points2d.resize(4);
     pattern.points3d.resize(4);
@@ -74,9 +77,7 @@ void PatternDetector::computePatternFromImage(const cv::Mat& image, Pattern& pat
     pattern.points3d[2] = cv::Point3f( unitW,  unitH, 0);
     pattern.points3d[3] = cv::Point3f(-unitW,  unitH, 0);
 
-    cv::Mat gray;
-    getGray(image, gray);
-    extractFeatures(gray, pattern.keypoints, pattern.descriptors);
+    extractFeatures(pattern.grayImg, pattern.keypoints, pattern.descriptors);
 }
 
 
@@ -95,12 +96,17 @@ bool PatternDetector::findPattern(const cv::Mat& image, PatternTrackingInfo& inf
     cv::Mat tmp = image.clone();
 #endif
 
-    bool homographyFound = refineMatchesWithHomography(m_queryKeypoints, m_pattern.keypoints, m_matches, m_roughHomography);
+    bool homographyFound = refineMatchesWithHomography(
+        m_queryKeypoints, 
+        m_pattern.keypoints, 
+        homographyReprojectionThreshold, 
+        m_matches, 
+        m_roughHomography);
 
     if (homographyFound)
     {
 #if _DEBUG
-        cv::showAndSave("Refined matches using ransac", getMatchesImage(image, m_pattern.frame, m_queryKeypoints, m_pattern.keypoints, m_matches, 100));
+        cv::showAndSave("Refined matches using RANSAC", getMatchesImage(image, m_pattern.frame, m_queryKeypoints, m_pattern.keypoints, m_matches, 100));
 #endif
         if (enableHomographyRefinement)
         {
@@ -116,9 +122,14 @@ bool PatternDetector::findPattern(const cv::Mat& image, PatternTrackingInfo& inf
             extractFeatures(m_warpedImg, warpedKeypoints, m_queryDescriptors);
             getMatches(m_queryDescriptors, refinedMatches);
 
-            homographyFound = refineMatchesWithHomography(warpedKeypoints, m_pattern.keypoints, refinedMatches, m_refinedHomography);
+            homographyFound = refineMatchesWithHomography(
+                warpedKeypoints, 
+                m_pattern.keypoints, 
+                homographyReprojectionThreshold, 
+                refinedMatches, 
+                m_refinedHomography);
 #if _DEBUG
-            cv::showAndSave("MatchesWithRefinedPose", getMatchesImage(m_warpedImg, m_pattern.frame, warpedKeypoints, m_pattern.keypoints, refinedMatches, 100));
+            cv::showAndSave("MatchesWithRefinedPose", getMatchesImage(m_warpedImg, m_pattern.grayImg, warpedKeypoints, m_pattern.keypoints, refinedMatches, 100));
 #endif
             info.homography = m_roughHomography * m_refinedHomography;
 
@@ -167,7 +178,7 @@ void PatternDetector::getGray(const cv::Mat& image, cv::Mat& gray)
         gray = image;
 }
 
-bool PatternDetector::extractFeatures(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints, cv::Mat& descriptors)
+bool PatternDetector::extractFeatures(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints, cv::Mat& descriptors) const
 {
     assert(!image.empty());
     assert(image.channels() == 1);
@@ -216,7 +227,14 @@ void PatternDetector::getMatches(const cv::Mat& queryDescriptors, std::vector<cv
     }
 }
 
-bool PatternDetector::refineMatchesWithHomography(const std::vector<cv::KeyPoint>& queryKeypoints,const std::vector<cv::KeyPoint>& trainKeypoints, std::vector<cv::DMatch>& matches, cv::Mat& homography)
+bool PatternDetector::refineMatchesWithHomography
+    (
+    const std::vector<cv::KeyPoint>& queryKeypoints,
+    const std::vector<cv::KeyPoint>& trainKeypoints, 
+    float reprojectionThreshold,
+    std::vector<cv::DMatch>& matches,
+    cv::Mat& homography
+    )
 {
     const int minNumberMatchesAllowed = 8;
 
@@ -235,7 +253,7 @@ bool PatternDetector::refineMatchesWithHomography(const std::vector<cv::KeyPoint
 
     // Find homography matrix and get inliers mask
     std::vector<unsigned char> inliersMask(srcPoints.size());
-    homography = cv::findHomography(srcPoints, dstPoints, CV_FM_RANSAC, 3, inliersMask);
+    homography = cv::findHomography(srcPoints, dstPoints, CV_FM_RANSAC, reprojectionThreshold, inliersMask);
 
     std::vector<cv::DMatch> inliers;
     for (size_t i=0; i<inliersMask.size(); i++)

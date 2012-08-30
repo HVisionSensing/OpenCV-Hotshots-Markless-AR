@@ -38,7 +38,7 @@ namespace cv
 			trainKp,
 			matches, 
 			outImg, 
-			cv::Scalar::all(-1), 
+			cv::Scalar(0,200,0,255), 
 			cv::Scalar::all(-1),
 			std::vector<char>(), 
 			cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS

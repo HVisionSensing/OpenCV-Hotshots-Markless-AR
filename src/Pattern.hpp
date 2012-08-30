@@ -15,6 +15,8 @@ struct Pattern
 {
   cv::Size                  size;
   cv::Mat                   frame;
+  cv::Mat                   grayImg;
+
   std::vector<cv::KeyPoint> keypoints;
   cv::Mat                   descriptors;
 
